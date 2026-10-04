@@ -48,7 +48,7 @@ _Last updated: 2026-10-04 · model `proj-formula@0.3.1` · 58/58 tests passing �
 |---|---|
 | Live NFL/NBA data | `BALLDONTLIE_API_KEY` (+ `DATA_MODE=live`) |
 | Market context (implied totals) | `THE_ODDS_API_KEY` |
-| LLM analyst | `AI_PROVIDER` + `OPENAI_API_KEY` or `GEMINI_API_KEY` |
+| LLM analyst | `AI_PROVIDER` + `OPENAI_API_KEY`, `GEMINI_API_KEY` or `DEEPSEEK_API_KEY` |
 | Live research events | `EXA_API_KEY` |
 | Yahoo leagues | `YAHOO_CLIENT_ID`, `YAHOO_CLIENT_SECRET` |
 | Persistence | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |

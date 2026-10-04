@@ -38,7 +38,7 @@ export function providerStatus(): SnapshotStatus["providers"] {
   return [
     { domain: "sports", name: "BALLDONTLIE", configured: balldontlie.isConfigured() },
     { domain: "sports", name: "SportsDataIO", configured: Boolean(env.SPORTSDATAIO_API_KEY) },
-    { domain: "sports", name: "Sportradar", configured: Boolean(env.SPORTRADAR_API_KEY) },
+    { domain: "sports", name: "Sportradar", configured: Boolean(env.SPORTRADAR_API_KEY_NBA || env.SPORTRADAR_API_KEY_NFL) },
     { domain: "fantasy", name: "Sleeper", configured: true },
     { domain: "fantasy", name: "Yahoo", configured: yahoo.isConfigured() },
     { domain: "odds", name: "The Odds API", configured: theOddsApi.isConfigured() },

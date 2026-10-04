@@ -8,14 +8,17 @@ import { z } from "zod";
  */
 const schema = z.object({
   DATA_MODE: z.enum(["mock", "live"]).default("mock"),
-  AI_PROVIDER: z.enum(["openai", "gemini", "mock", ""]).default(""),
+  AI_PROVIDER: z.enum(["openai", "gemini", "deepseek", "mock", ""]).default(""),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().optional(),
+  DEEPSEEK_API_KEY: z.string().optional(),
+  DEEPSEEK_MODEL: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL: z.string().optional(),
   BALLDONTLIE_API_KEY: z.string().optional(),
   SPORTSDATAIO_API_KEY: z.string().optional(),
-  SPORTRADAR_API_KEY: z.string().optional(),
+  SPORTRADAR_API_KEY_NBA: z.string().optional(),
+  SPORTRADAR_API_KEY_NFL: z.string().optional(),
   THE_ODDS_API_KEY: z.string().optional(),
   YAHOO_CLIENT_ID: z.string().optional(),
   YAHOO_CLIENT_SECRET: z.string().optional(),
@@ -40,8 +43,9 @@ export const env = parsed.success ? parsed.data : schema.parse({});
 
 export const has = (key: keyof typeof env): boolean => Boolean(env[key]);
 
-export function resolvedAiProvider(): "openai" | "gemini" | "mock" {
+export function resolvedAiProvider(): "openai" | "gemini" | "deepseek" | "mock" {
   if (env.AI_PROVIDER === "openai" && env.OPENAI_API_KEY) return "openai";
+  if (env.AI_PROVIDER === "deepseek" && env.DEEPSEEK_API_KEY) return "deepseek";
   if (env.AI_PROVIDER === "gemini" && env.GEMINI_API_KEY) return "gemini";
   return "mock";
 }

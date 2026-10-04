@@ -21,4 +21,4 @@ function stub(name: string, key: string | undefined): SportsProvider {
 }
 
 export const sportsDataIo = stub("sportsdataio", env.SPORTSDATAIO_API_KEY);
-export const sportradar = stub("sportradar", env.SPORTRADAR_API_KEY);
+export const sportradar = stub("sportradar", env.SPORTRADAR_API_KEY_NBA || env.SPORTRADAR_API_KEY_NFL);

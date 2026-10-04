@@ -24,5 +24,5 @@ export default async function Ask({ params }: { params: Promise<{ sport: Sport }
     "What's my team's biggest weakness?",
   ];
   const provider = resolvedAiProvider();
-  return <AskPanel sport={sport} suggestions={suggestions} providerName={provider === "mock" ? "built-in deterministic analyst (set AI_PROVIDER + key for OpenAI/Gemini)" : provider} />;
+  return <AskPanel sport={sport} suggestions={suggestions} providerName={provider === "mock" ? "built-in deterministic analyst (set AI_PROVIDER + key for OpenAI/Gemini/DeepSeek)" : provider} />;
 }
