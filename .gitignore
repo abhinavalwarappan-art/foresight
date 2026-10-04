@@ -11,3 +11,5 @@ coverage
 
 # local secrets / template with real values
 .env.example
+.vercel
+.env*
