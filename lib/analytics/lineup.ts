@@ -3,6 +3,9 @@ import type { Position, RosterSlot } from "@/lib/domain/types";
 export const SLOT_ELIGIBILITY: Record<RosterSlot, Position[]> = {
   QB: ["QB"], RB: ["RB"], WR: ["WR"], TE: ["TE"], K: ["K"], DST: ["DST"],
   FLEX: ["RB", "WR", "TE"],
+  SUPER_FLEX: ["QB", "RB", "WR", "TE"],
+  WRRB_FLEX: ["RB", "WR"],
+  REC_FLEX: ["WR", "TE"],
   PG: ["PG"], SG: ["SG"], SF: ["SF"], PF: ["PF"], C: ["C"],
   G: ["PG", "SG"], F: ["SF", "PF"], UTIL: ["PG", "SG", "SF", "PF", "C"],
   BN: [], IR: [],

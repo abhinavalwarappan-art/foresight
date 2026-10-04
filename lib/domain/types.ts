@@ -81,6 +81,22 @@ export interface Game {
   status: "scheduled" | "live" | "final";
   homeScore: number | null;
   awayScore: number | null;
+  venue?: string | null;
+}
+
+export interface WeatherContext {
+  gameId: string;
+  relevant: boolean;
+  roof: "outdoor" | "retractable" | "dome" | "unknown";
+  temperatureF: number | null;
+  windMph: number | null;
+  windGustMph: number | null;
+  precipitationProbability: number | null;
+  precipitationIn: number | null;
+  humidity: number | null;
+  condition: string | null;
+  forecastTimestamp: string | null;
+  provenance: Provenance;
 }
 
 /** Raw counting stats keyed by stat code (see lib/scoring). */
@@ -168,6 +184,8 @@ export interface MarketProjection {
 }
 
 export interface Projection {
+  /** False means required observed inputs were unavailable; numeric fields are non-authoritative sentinels. */
+  available?: boolean;
   playerId: string;
   week: number;
   median: number;
@@ -194,14 +212,14 @@ export interface ScoringSettings {
 }
 
 export type RosterSlot =
-  | "QB" | "RB" | "WR" | "TE" | "FLEX" | "K" | "DST"
+  | "QB" | "RB" | "WR" | "TE" | "FLEX" | "SUPER_FLEX" | "WRRB_FLEX" | "REC_FLEX" | "K" | "DST"
   | "PG" | "SG" | "SF" | "PF" | "C" | "G" | "F" | "UTIL"
   | "BN" | "IR";
 
 export interface FantasyLeague {
   id: string;
   sport: Sport;
-  provider: "sleeper" | "yahoo" | "mock";
+  provider: "sleeper" | "yahoo" | "manual" | "mock";
   name: string;
   season: number;
   currentWeek: number;
@@ -227,6 +245,8 @@ export interface FantasyTeam {
 
 export interface FantasyRoster {
   teamId: string;
+  /** Provider-reported active lineup, in provider slot order when available. */
+  starterIds?: string[];
   playerIds: string[];
   irIds: string[];
 }

@@ -13,7 +13,7 @@ import { toolSpecs } from "@/lib/ai/tools";
 import { playerName } from "@/lib/analytics/context";
 import { allValues } from "@/lib/analytics/value";
 import { env } from "@/lib/config/env";
-import { loadContext, sportSchema } from "@/lib/services/core";
+import { leagueConnection, loadContext, sportSchema } from "@/lib/services/core";
 import { cn } from "@/lib/util/cn";
 
 export const metadata = { title: "Data Inspector (DEV)", robots: { index: false, follow: false } };
@@ -33,6 +33,7 @@ export default async function DataInspector({ searchParams }: { searchParams: Pr
   const sport = sportSchema.catch("nfl").parse(sp.sport);
   const provider = (PROVIDERS as readonly string[]).includes(sp.provider ?? "") ? (sp.provider as InspectorProvider) : undefined;
   const { ctx, status } = await loadContext(sport);
+  const connection = await leagueConnection(sport);
   const snap = ctx.snap;
   const vals = allValues(ctx);
   const defaultPlayer = [...vals.values()].filter((v) => v.tags.includes("INJURY OPPORTUNITY")).sort((a, b) => b.value - a.value)[0]?.playerId ?? snap.players[0].id;
@@ -71,6 +72,7 @@ export default async function DataInspector({ searchParams }: { searchParams: Pr
           <span className="rounded border border-line px-2 py-1">DATA_MODE=<b className={env.DATA_MODE === "live" ? "text-up" : "text-amber"}>{env.DATA_MODE}</b></span>
           <span className="rounded border border-line px-2 py-1">snapshot: {snap.isMock ? "MOCK (fictional)" : "LIVE"}</span>
           <span className="rounded border border-line px-2 py-1">generated {snap.generatedAt}</span>
+          {connection?.provider === "sleeper" && <span className="rounded border border-up/30 px-2 py-1 text-up">Sleeper {connection.leagueId} · synced {connection.syncedAt ?? "unknown"}</span>}
           {status.fallbackReason && <span className="rounded border border-amber/40 px-2 py-1 text-amber">fallback: {status.fallbackReason}</span>}
         </div>
       </header>

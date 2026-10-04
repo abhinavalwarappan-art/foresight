@@ -34,6 +34,7 @@ export function providerHealthRows(): ProviderHealthRow[] {
     { id: "yahoo", name: "Yahoo Fantasy", domain: "fantasy", configured: Boolean(env.YAHOO_CLIENT_ID && env.YAHOO_CLIENT_SECRET), note: "OAuth only; league sync pending" },
     { id: "the-odds-api", name: "The Odds API", domain: "odds", configured: Boolean(env.THE_ODDS_API_KEY) },
     { id: "exa", name: "Exa", domain: "research", configured: Boolean(env.EXA_API_KEY) },
+    { id: "open-meteo", name: "Open-Meteo", domain: "weather", configured: true, note: "public forecast API; NFL outdoor/relevant venues only" },
     { id: "deepseek", name: "DeepSeek", domain: "ai", configured: Boolean(env.DEEPSEEK_API_KEY), note: resolvedAiProvider() === "deepseek" ? "active AI provider" : "inactive" },
     { id: "openai", name: "OpenAI", domain: "ai", configured: Boolean(env.OPENAI_API_KEY), note: resolvedAiProvider() === "openai" ? "active AI provider" : "inactive" },
     { id: "gemini", name: "Gemini", domain: "ai", configured: Boolean(env.GEMINI_API_KEY), note: resolvedAiProvider() === "gemini" ? "active AI provider" : "inactive" },

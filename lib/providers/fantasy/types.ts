@@ -25,6 +25,8 @@ export interface LeagueSummary {
   sport: Sport;
   season: number;
   teams: number;
+  scoring: string;
+  status: string;
 }
 
 export interface FantasyProvider {

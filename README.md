@@ -73,11 +73,38 @@ npm run dev          # http://localhost:3600
 `DATA_MODE=mock`. Fictional players, teams and leagues, generated from fixed seeds (byte-for-byte reproducible). A banner marks mock data on every app page. Nothing is presented as real.
 
 ### Live mode
-1. `DATA_MODE=live` and `BALLDONTLIE_API_KEY=…`
-2. Visit `/connect`, enter your Sleeper username, pick a league (stored as public IDs in an httpOnly cookie).
+1. `DATA_MODE=live` and configure at least one implemented sports-data provider.
+2. Visit `/connect` and either connect Sleeper or choose **Select my players** for a temporary manual analysis roster.
 3. Optional: `THE_ODDS_API_KEY`, `EXA_API_KEY`, `AI_PROVIDER` + key.
 
-If a provider fails, the registry serves cached data (marked stale) or falls back to mock **with the reason shown in the banner** — it never fills gaps with invented numbers.
+`DATA_MODE=live` never substitutes the fictional mock world. A required-provider failure is surfaced as an error; optional stats, injuries, odds, research, or weather are returned as unavailable and shown in provenance. `DATA_MODE=mock` remains the explicit deterministic demonstration environment.
+
+### Manual analysis mode
+
+Manual mode does not create a fantasy league or require an account. Search the real BALLDONTLIE NFL/NBA player endpoint, select the players already on your roster, choose scoring, and store the temporary configuration in an HTTP-only development cookie. The resulting normalized context feeds roster intelligence, player outlooks, weekly outlook, scenarios, targets, and AI tools. Connected-league ownership features remain richer because manual mode cannot know league-wide ownership.
+
+Sleeper itself needs **no API key, password, or OAuth token**. The connection stores only the stable public Sleeper user ID, league ID, provider name, and last-sync timestamp. Use **Sync league** on `/connect` to refresh league settings, managers, rosters, starters, reserves, matchups, and current-week transactions.
+
+### Sleeper integration
+
+The adapter uses the documented public endpoints for `user/<username>`, `user/<user_id>/leagues/nfl/<season>`, `league/<league_id>`, league `users`, `rosters`, `matchups/<week>`, `transactions/<week>`, `state/nfl`, and `players/nfl`. Provider payloads are normalized before reaching pages or AI tools.
+
+- Sleeper owns league context: manager/roster ownership, reported starters and IR, settings, scoring, matchups, and transactions.
+- Sports providers own real-world stats, schedules, injuries, and projections.
+- Scoring translates passing, rushing, receiving, fumbles, two-point plays, common bonuses, kicker, and DST keys. Unknown settings remain harmless rather than being guessed.
+- `SUPER_FLEX`, `WRRB_FLEX`, and `REC_FLEX` preserve distinct eligibility in the lineup optimizer.
+- Identity matching is strict name + position + team first, then unique name + position; ambiguous and unmatched players are never silently linked and appear in `/admin/data?league=1`.
+- Cache policy: player metadata 24 hours (7-day stale fallback), league/users 30 minutes, rosters/matchups/transactions 5 minutes. Manual sync invalidates league data but deliberately keeps the large player map warm.
+
+### Intelligence orchestration
+
+- `getPlayerOutlook` composes identity, ownership, projection, availability, opportunity, trend rate, historical windows with sample sizes, upcoming games, market context, and weather where available.
+- `getGameIntelligence` composes opponents, venue, home/away, rest and NBA back-to-back state, injuries, market, and NFL weather relevance.
+- `getWeeklyTeamOutlook` uses the same projection and lineup engines as the rest of the product and returns the recommended lineup, bench, team floor/median/ceiling, confidence, flags, freshness, and unavailable inputs.
+- Open-Meteo supplies cached NFL forecasts for outdoor/relevant venues. Dome games skip weather. Retractable roofs are marked as such and are not assumed open.
+- AI tools consume these normalized high-level objects. Provider responses and research page text are never sent directly to an LLM.
+
+If an optional provider fails, the registry serves stale cached data when available or marks the factor unavailable. It never fills live-data gaps with invented values.
 
 ## Environment variables
 See `.env.example`. Only `NEXT_PUBLIC_*` values reach the browser; everything else is read in `lib/config/env.ts`, which imports `server-only` so a client import is a build error. `GET /api/health` reports which providers are configured (booleans only).
@@ -113,7 +140,7 @@ Highlights: provenance on every provider row; `projection_snapshots`, `player_va
 
 ## Testing
 ```bash
-npm test             # vitest — 58 tests: scoring, lineup, engines, trades, scenarios, providers, ID mapping,
+npm test             # vitest — 68 tests: scoring, lineup, engines, trades, scenarios, providers, Sleeper, ID mapping,
                      # ambiguity, missing data, analytics-trace reconciliation, tool outputs, freshness, redaction
 npm run typecheck
 npm run build

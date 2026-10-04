@@ -1,10 +1,11 @@
 import "server-only";
 import { env } from "@/lib/config/env";
 import type { DataSnapshot } from "@/lib/domain/snapshot";
-import type { Player, PlayerGame, Provenance, Sport } from "@/lib/domain/types";
+import type { Player, PlayerGame, Provenance, RosterSlot, ScoringFormat, Sport } from "@/lib/domain/types";
 import { matchPlayers, type MatchResult } from "@/lib/ids/mapping";
 import { getMockWorld } from "@/lib/mock/world";
 import { fantasyPoints } from "@/lib/scoring";
+import { SCORING_PRESETS } from "@/lib/scoring";
 import { sleeper } from "./fantasy/sleeper";
 import { yahoo } from "./fantasy/yahoo";
 import type { FantasyProvider } from "./fantasy/types";
@@ -18,9 +19,13 @@ import { sportradar, sportsDataIo } from "./sports/stubs";
 import type { SportsProvider } from "./sports/types";
 
 export interface LeagueConnection {
-  provider: "sleeper" | "yahoo";
+  provider: "sleeper" | "yahoo" | "manual";
   leagueId: string;
   userId?: string;
+  syncedAt?: string;
+  playerIds?: string[];
+  scoring?: ScoringFormat;
+  slots?: RosterSlot[];
 }
 
 export interface SnapshotStatus {
@@ -32,7 +37,7 @@ export interface SnapshotStatus {
 }
 
 const SPORTS_CHAIN: SportsProvider[] = [balldontlie, sportsDataIo, sportradar];
-const FANTASY: Record<LeagueConnection["provider"], FantasyProvider> = { sleeper, yahoo };
+const FANTASY: Record<"sleeper" | "yahoo", FantasyProvider> = { sleeper, yahoo };
 
 export function providerStatus(): SnapshotStatus["providers"] {
   return [
@@ -43,6 +48,7 @@ export function providerStatus(): SnapshotStatus["providers"] {
     { domain: "fantasy", name: "Yahoo", configured: yahoo.isConfigured() },
     { domain: "odds", name: "The Odds API", configured: theOddsApi.isConfigured() },
     { domain: "research", name: "Exa", configured: exa.isConfigured() },
+    { domain: "weather", name: "Open-Meteo", configured: true },
   ];
 }
 
@@ -64,12 +70,16 @@ const mappingReports = new Map<Sport, MappingReport>();
 export const lastMappingReport = (sport: Sport) => mappingReports.get(sport) ?? null;
 const TTL = 5 * 60_000;
 
+export function invalidateSnapshot(sport: Sport, conn: LeagueConnection): void {
+  const prefix = `${sport}:${conn.provider}:${conn.leagueId}:${conn.userId ?? ""}`;
+  for (const key of memo.keys()) if (key.startsWith(prefix)) memo.delete(key);
+}
+
 /**
  * The single entry point the service layer uses to get data.
  * mock mode → deterministic fictional world.
  * live mode → BALLDONTLIE (+ fallbacks) for sports, Sleeper/Yahoo for the league,
- * The Odds API for markets. Any unrecoverable gap falls back to mock — loudly,
- * with the reason surfaced in the UI. Nothing is silently fabricated.
+ * The Odds API for markets. Live mode never substitutes the fictional mock world.
  */
 export async function getSnapshot(sport: Sport, conn?: LeagueConnection | null): Promise<{ snap: DataSnapshot; status: SnapshotStatus }> {
   const providers = providerStatus();
@@ -81,19 +91,20 @@ export async function getSnapshot(sport: Sport, conn?: LeagueConnection | null):
     for (const p of ["balldontlie", "sleeper", "the-odds-api", "exa"]) setState(p, "mock");
     return mock(null);
   }
-  if (!conn) return mock("Live mode is on, but no fantasy league is connected yet.");
+  if (!conn) throw new Error("Live mode requires either a connected league or a manual analysis roster. Start at /connect.");
+  const active = conn;
 
-  const key = `${sport}:${conn.provider}:${conn.leagueId}:${conn.userId ?? ""}`;
+  const key = `${sport}:${active.provider}:${active.leagueId}:${active.userId ?? ""}:${(active.playerIds ?? []).join(",")}:${active.scoring ?? ""}`;
   const hit = memo.get(key);
   if (hit && Date.now() - hit.at < TTL) return hit;
   try {
-    const built = await buildLive(sport, conn);
+    const built = await buildLive(sport, active);
     const value = { at: Date.now(), ...built, status: { ...built.status, providers } };
     memo.set(key, value);
     return value;
   } catch (e) {
     if (hit) return { ...hit, status: { ...hit.status, fallbackReason: `Serving cached snapshot: ${(e as Error).message}` } };
-    return mock(`Live providers failed: ${(e as Error).message}`);
+    throw new Error(`Live data unavailable: ${(e as Error).message}`);
   }
 }
 
@@ -112,19 +123,33 @@ async function firstWorking<T>(chain: SportsProvider[], f: (p: SportsProvider) =
 
 async function buildLive(sport: Sport, conn: LeagueConnection): Promise<{ snap: DataSnapshot; status: SnapshotStatus }> {
   const season = currentSeason(sport);
-  const [teams, players, games, injuries, league] = await Promise.all([
+  const loadPlayers = () => conn.provider === "manual" && balldontlie.getPlayersByIds
+    ? balldontlie.getPlayersByIds(sport, conn.playerIds ?? [])
+    : firstWorking(SPORTS_CHAIN, (p) => p.getPlayers(sport));
+  const [teams, players, games] = await Promise.all([
     firstWorking(SPORTS_CHAIN, (p) => p.getTeams(sport)),
-    firstWorking(SPORTS_CHAIN, (p) => p.getPlayers(sport)),
+    loadPlayers(),
     firstWorking(SPORTS_CHAIN, (p) => p.getGames(sport, season)),
-    firstWorking(SPORTS_CHAIN, (p) => p.getInjuries(sport)).catch(() => null),
-    FANTASY[conn.provider].getLeague(conn.leagueId, { userId: conn.userId, sport }),
   ]);
+  const injuries = await firstWorking(SPORTS_CHAIN, (p) => p.getInjuries(sport)).catch(() => null);
+
+  const currentWeek = determineCurrentWeek(sport, games.data, season);
+  const scoring = conn.scoring ?? (sport === "nfl" ? "ppr" : "nba_points");
+  const manualSlots: RosterSlot[] = conn.slots ?? (sport === "nfl" ? ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "BN"] : ["PG", "SG", "SF", "PF", "C", "G", "F", "UTIL", "BN"]);
+  const manualTeamId = `manual-${sport}-team`;
+  const league = conn.provider === "manual"
+    ? { data: {
+        league: { id: `manual-${sport}`, sport, provider: "manual" as const, name: "Manual analysis", season, currentWeek, totalWeeks: sport === "nfl" ? 18 : 26, playoffTeams: 0, scoring: SCORING_PRESETS[scoring], slots: manualSlots, provenance: liveProv("manual") },
+        teams: [{ id: manualTeamId, leagueId: `manual-${sport}`, name: "My selected players", manager: "You", isUser: true, wins: 0, losses: 0, ties: 0, pointsFor: 0, pointsAgainst: 0 }],
+        rosters: [{ teamId: manualTeamId, playerIds: conn.playerIds ?? [], irIds: [] }], matchups: [], transactions: [],
+        players: players.data.filter((p) => (conn.playerIds ?? []).includes(p.id)).map((p) => ({ externalId: p.id, firstName: p.firstName, lastName: p.lastName, position: p.position, teamAbbr: teams.data.find((t) => t.id === p.teamId)?.abbr ?? null })), hints: {},
+      }, provenance: liveProv("manual") }
+    : await FANTASY[conn.provider].getLeague(conn.leagueId, { userId: conn.userId, sport });
 
   const recentCutoff = Date.now() - (sport === "nfl" ? 70 : 24) * 86_400_000;
   const completed = games.data.filter((g) => g.status === "final" && Date.parse(g.date) >= recentCutoff);
-  const pg = await firstWorking(SPORTS_CHAIN, (p) => p.getPlayerGames(sport, season, completed.map((g) => g.id)));
-
-  const playerGames: PlayerGame[] = pg.data;
+  const pg = await firstWorking(SPORTS_CHAIN, (p) => p.getPlayerGames(sport, season, completed.map((g) => g.id))).catch(() => null);
+  const playerGames: PlayerGame[] = pg?.data ?? [];
 
   // Map league players (provider ids) → internal ids
   const abbr = new Map(teams.data.map((t) => [t.id, t.abbr]));
@@ -133,6 +158,7 @@ async function buildLive(sport: Sport, conn: LeagueConnection): Promise<{ snap: 
   const toInternal = (id: string) => match.map.get(id);
   const rosters = league.data.rosters.map((r) => ({
     ...r,
+    starterIds: r.starterIds?.map(toInternal).filter((x): x is string => Boolean(x)),
     playerIds: r.playerIds.map(toInternal).filter((x): x is string => Boolean(x)),
     irIds: r.irIds.map(toInternal).filter((x): x is string => Boolean(x)),
   }));
@@ -149,7 +175,6 @@ async function buildLive(sport: Sport, conn: LeagueConnection): Promise<{ snap: 
     };
   });
 
-  const currentWeek = league.data.league.currentWeek;
   const scheduledWeek = games.data.filter((g) => g.week === currentWeek);
   const odds = theOddsApi.isConfigured()
     ? await theOddsApi.getGameMarkets(sport, scheduledWeek, teams.data).catch(() => ({ data: [], provenance: liveProv("the-odds-api") }))
@@ -180,8 +205,14 @@ async function buildLive(sport: Sport, conn: LeagueConnection): Promise<{ snap: 
   };
   return {
     snap,
-    status: { mode: "live", usingMock: false, fallbackReason: null, providers: [], unmatchedPlayers: match.unmatched.length + match.ambiguous.length },
+    status: { mode: "live", usingMock: false, fallbackReason: pg ? null : "Historical player stats are unavailable on the configured sports-data subscription; projections are low-confidence/unavailable.", providers: [], unmatchedPlayers: match.unmatched.length + match.ambiguous.length },
   };
+}
+
+function determineCurrentWeek(sport: Sport, games: { week: number; date: string; status: string }[], season: number): number {
+  if (sport === "nba") return Math.max(1, Math.floor((Date.now() - Date.UTC(season, 9, 20)) / (7 * 86_400_000)) + 1);
+  const upcoming = games.filter((g) => g.status !== "final" && Date.parse(g.date) >= Date.now() - 12 * 3600_000).sort((a, b) => Date.parse(a.date) - Date.parse(b.date));
+  return upcoming[0]?.week ?? Math.max(1, ...games.map((g) => g.week || 0));
 }
 
 const avg = (x?: { s: number; n: number }) => (x && x.n ? x.s / x.n : 0);
@@ -190,7 +221,9 @@ function liveProv(source: string): Provenance {
 }
 
 export function researchProvider(): ResearchProvider {
-  return env.DATA_MODE === "live" && exa.isConfigured() ? exa : mockResearch;
+  if (env.DATA_MODE === "mock") return mockResearch;
+  if (exa.isConfigured()) return exa;
+  return { name: "none", isConfigured: () => false, research: async () => ({ data: [], provenance: liveProv("none") }) };
 }
 
 export { allHealth };

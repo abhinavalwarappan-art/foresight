@@ -38,3 +38,8 @@ export function cacheSet<T>(key: string, cls: CacheClass, value: T, now = Date.n
 export function cacheClear(): void {
   store.clear();
 }
+
+/** Targeted invalidation keeps large shared datasets (notably Sleeper players) warm. */
+export function cacheDeletePrefix(prefix: string): void {
+  for (const key of store.keys()) if (key.startsWith(prefix)) store.delete(key);
+}
