@@ -16,6 +16,7 @@ const schema = z.object({
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL: z.string().optional(),
   BALLDONTLIE_API_KEY: z.string().optional(),
+  BALLDONTLIE_TIER: z.enum(["free", "paid"]).default("free"),
   SPORTSDATAIO_API_KEY: z.string().optional(),
   SPORTRADAR_API_KEY_NBA: z.string().optional(),
   SPORTRADAR_API_KEY_NFL: z.string().optional(),

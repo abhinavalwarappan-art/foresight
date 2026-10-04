@@ -257,6 +257,7 @@ export const balldontlie: SportsProvider = {
   },
 
   async getPlayerGames(sport, season, gameIds): Promise<Sourced<PlayerGame[]>> {
+    if (env.BALLDONTLIE_TIER === "free") throw new NotConfiguredError(NAME, `${sport} stats require a paid BALLDONTLIE tier`);
     if (unsupported.has(`${sport}:stats`)) throw new NotConfiguredError(NAME, `${sport} stats unavailable on current subscription tier`);
     const ids = gameIds.map((g) => Number(g.split("-g").pop())).filter(Number.isFinite);
     const out: PlayerGame[] = [];
@@ -281,6 +282,7 @@ export const balldontlie: SportsProvider = {
   },
 
   async getInjuries(sport) {
+    if (env.BALLDONTLIE_TIER === "free") throw new NotConfiguredError(NAME, `${sport} injuries require a paid BALLDONTLIE tier`);
     const r = await optionalTier(`${sport}:injuries`, () => paginate<BdlInjury>(`/${sport}/v1/player_injuries`, {}, "injuries"));
     r.data.forEach((i, j) => raw("injury", `player:${playerId(sport, i.player.id)}`, r.metas[j], i));
     const data: Injury[] = r.data.map((i) => ({

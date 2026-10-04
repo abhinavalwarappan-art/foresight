@@ -1,6 +1,6 @@
 import "server-only";
 import { cacheGet, cacheSet } from "@/lib/cache/store";
-import type { CacheClass } from "@/lib/cache/policy";
+import { CACHE_POLICY, type CacheClass } from "@/lib/cache/policy";
 import type { CacheStatus } from "@/lib/domain/types";
 import { isOpenCircuit, isRateLimited, markCache, markFailure, markOk } from "./health";
 
@@ -82,7 +82,11 @@ export async function providerFetch<T>(url: string, opts: Opts): Promise<FetchRe
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     const started = Date.now();
     try {
-      const res = await fetch(url, { headers, signal: ctrl.signal, cache: "no-store" });
+      // Next's Data Cache persists across Vercel serverless instances. The
+      // process-local cache remains the fast/stale layer, while this shared
+      // layer prevents every cold function from spending provider quota.
+      const revalidate = Math.max(1, Math.floor(CACHE_POLICY[cacheClass].ttl / 1000));
+      const res = await fetch(url, { headers, signal: ctrl.signal, cache: "force-cache", next: { revalidate } });
       if (res.status === 429) {
         const retryAfter = Number(res.headers.get("retry-after") ?? "30") * 1000;
         markFailure(provider, "429 rate limited", retryAfter);

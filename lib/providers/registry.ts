@@ -1,8 +1,8 @@
 import "server-only";
 import { env } from "@/lib/config/env";
 import type { DataSnapshot } from "@/lib/domain/snapshot";
-import type { Player, PlayerGame, Provenance, RosterSlot, ScoringFormat, Sport } from "@/lib/domain/types";
-import { matchPlayers, type MatchResult } from "@/lib/ids/mapping";
+import type { Player, PlayerGame, Position, Provenance, RosterSlot, ScoringFormat, Sport, Team } from "@/lib/domain/types";
+import { matchPlayers, normalizeTeam, type ExternalPlayerRef, type MatchResult } from "@/lib/ids/mapping";
 import { getMockWorld } from "@/lib/mock/world";
 import { fantasyPoints } from "@/lib/scoring";
 import { SCORING_PRESETS } from "@/lib/scoring";
@@ -14,7 +14,7 @@ import { theOddsApi } from "./odds/theOddsApi";
 import { exa } from "./research/exa";
 import { mockResearch } from "./research/mock";
 import type { ResearchProvider } from "./research/types";
-import { balldontlie } from "./sports/balldontlie";
+import { balldontlie, mapDesignation } from "./sports/balldontlie";
 import { sportradar, sportsDataIo } from "./sports/stubs";
 import type { SportsProvider } from "./sports/types";
 
@@ -42,8 +42,8 @@ const FANTASY: Record<"sleeper" | "yahoo", FantasyProvider> = { sleeper, yahoo }
 export function providerStatus(): SnapshotStatus["providers"] {
   return [
     { domain: "sports", name: "BALLDONTLIE", configured: balldontlie.isConfigured() },
-    { domain: "sports", name: "SportsDataIO", configured: Boolean(env.SPORTSDATAIO_API_KEY) },
-    { domain: "sports", name: "Sportradar", configured: Boolean(env.SPORTRADAR_API_KEY_NBA || env.SPORTRADAR_API_KEY_NFL) },
+    { domain: "sports", name: "SportsDataIO (adapter pending)", configured: sportsDataIo.isConfigured() },
+    { domain: "sports", name: "Sportradar (adapter pending)", configured: sportradar.isConfigured() },
     { domain: "fantasy", name: "Sleeper", configured: true },
     { domain: "fantasy", name: "Yahoo", configured: yahoo.isConfigured() },
     { domain: "odds", name: "The Odds API", configured: theOddsApi.isConfigured() },
@@ -123,14 +123,14 @@ async function firstWorking<T>(chain: SportsProvider[], f: (p: SportsProvider) =
 
 async function buildLive(sport: Sport, conn: LeagueConnection): Promise<{ snap: DataSnapshot; status: SnapshotStatus }> {
   const season = currentSeason(sport);
-  const loadPlayers = () => conn.provider === "manual" && balldontlie.getPlayersByIds
-    ? balldontlie.getPlayersByIds(sport, conn.playerIds ?? [])
-    : firstWorking(SPORTS_CHAIN, (p) => p.getPlayers(sport));
-  const [teams, players, games] = await Promise.all([
+  const [teams, games, connectedLeague] = await Promise.all([
     firstWorking(SPORTS_CHAIN, (p) => p.getTeams(sport)),
-    loadPlayers(),
     firstWorking(SPORTS_CHAIN, (p) => p.getGames(sport, season)),
+    conn.provider === "manual" ? Promise.resolve(null) : FANTASY[conn.provider].getLeague(conn.leagueId, { userId: conn.userId, sport }),
   ]);
+  const players = conn.provider === "manual" && balldontlie.getPlayersByIds
+    ? await balldontlie.getPlayersByIds(sport, conn.playerIds ?? [])
+    : playersFromLeagueRefs(sport, conn.provider as "sleeper" | "yahoo", connectedLeague!.data.players, connectedLeague!.data.hints, teams.data, connectedLeague!.provenance);
   const injuries = await firstWorking(SPORTS_CHAIN, (p) => p.getInjuries(sport)).catch(() => null);
 
   const currentWeek = determineCurrentWeek(sport, games.data, season);
@@ -144,11 +144,13 @@ async function buildLive(sport: Sport, conn: LeagueConnection): Promise<{ snap: 
         rosters: [{ teamId: manualTeamId, playerIds: conn.playerIds ?? [], irIds: [] }], matchups: [], transactions: [],
         players: players.data.filter((p) => (conn.playerIds ?? []).includes(p.id)).map((p) => ({ externalId: p.id, firstName: p.firstName, lastName: p.lastName, position: p.position, teamAbbr: teams.data.find((t) => t.id === p.teamId)?.abbr ?? null })), hints: {},
       }, provenance: liveProv("manual") }
-    : await FANTASY[conn.provider].getLeague(conn.leagueId, { userId: conn.userId, sport });
+    : connectedLeague!;
 
   const recentCutoff = Date.now() - (sport === "nfl" ? 70 : 24) * 86_400_000;
   const completed = games.data.filter((g) => g.status === "final" && Date.parse(g.date) >= recentCutoff);
-  const pg = await firstWorking(SPORTS_CHAIN, (p) => p.getPlayerGames(sport, season, completed.map((g) => g.id))).catch(() => null);
+  const pg = conn.provider === "manual"
+    ? await firstWorking(SPORTS_CHAIN, (p) => p.getPlayerGames(sport, season, completed.map((g) => g.id))).catch(() => null)
+    : null;
   const playerGames: PlayerGame[] = pg?.data ?? [];
 
   // Map league players (provider ids) → internal ids
@@ -207,6 +209,44 @@ async function buildLive(sport: Sport, conn: LeagueConnection): Promise<{ snap: 
     snap,
     status: { mode: "live", usingMock: false, fallbackReason: pg ? null : "Historical player stats are unavailable on the configured sports-data subscription; projections are low-confidence/unavailable.", providers: [], unmatchedPlayers: match.unmatched.length + match.ambiguous.length },
   };
+}
+
+const POSITIONS = new Set<Position>(["QB", "RB", "WR", "TE", "K", "DST", "PG", "SG", "SF", "PF", "C"]);
+
+/** Build the internal player set directly from the connected fantasy provider.
+ * This keeps connected leagues usable on the BALLDONTLIE free tier, where
+ * downloading and reconciling the full sports player catalog exceeds quotas.
+ */
+export function playersFromLeagueRefs(
+  sport: Sport,
+  provider: "sleeper" | "yahoo",
+  refs: ExternalPlayerRef[],
+  hints: Record<string, { depthOrder?: number; injury?: string | null }>,
+  teams: Team[],
+  provenance: Provenance,
+): { data: Player[]; provenance: Provenance } {
+  const teamIds = new Map(teams.map((team) => [normalizeTeam(team.abbr), team.id]));
+  const data = refs.flatMap((ref): Player[] => {
+    const normalizedPosition = ref.position === "DEF" ? "DST" : ref.position;
+    if (!normalizedPosition || !POSITIONS.has(normalizedPosition as Position)) return [];
+    const id = `${sport}-${provider}-p${ref.externalId}`;
+    const hint = hints[ref.externalId];
+    return [{
+      id,
+      ids: { internal: id, [provider]: ref.externalId },
+      sport,
+      firstName: ref.firstName,
+      lastName: ref.lastName,
+      position: normalizedPosition as Position,
+      teamId: teamIds.get(normalizeTeam(ref.teamAbbr)) ?? `free-agent-${sport}`,
+      jersey: 0,
+      age: 0,
+      experience: 0,
+      status: mapDesignation(hint?.injury ?? "healthy"),
+      depthOrder: hint?.depthOrder ?? 1,
+    }];
+  });
+  return { data, provenance };
 }
 
 function determineCurrentWeek(sport: Sport, games: { week: number; date: string; status: string }[], season: number): number {

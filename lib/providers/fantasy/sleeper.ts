@@ -173,7 +173,7 @@ export const sleeper: FantasyProvider = {
     const refs: ExternalPlayerRef[] = [];
     const hints: FantasyLeagueBundle["hints"] = {};
     for (const p of Object.values(players.data ?? {})) {
-      if (!p.position || (!relevant.has(p.player_id) && !p.team)) continue;
+      if (!p.position || !relevant.has(p.player_id)) continue;
       refs.push({ externalId: p.player_id, firstName: p.first_name, lastName: p.last_name, position: p.position, teamAbbr: p.team });
       if (relevant.has(p.player_id)) recordRaw({ provider: NAME, kind: "player", entityKey: `sleeper:${p.player_id}`, endpoint: players.endpoint, retrievedAt: players.retrievedAt, cache: players.cache, payload: p });
       hints[p.player_id] = { depthOrder: p.depth_chart_order ?? undefined, injury: p.injury_status };
