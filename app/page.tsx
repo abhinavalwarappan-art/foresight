@@ -60,9 +60,9 @@ export default function Landing() {
       <header className="relative z-20 mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
         <Logo />
         <nav className="flex items-center gap-2 text-sm">
-          <Link href="/nba" className="hidden rounded-lg px-3 py-2 text-fg-muted hover:text-fg sm:block">NBA</Link>
-          <Link href="/nfl" className="hidden rounded-lg px-3 py-2 text-fg-muted hover:text-fg sm:block">NFL</Link>
-          <Link href="/nfl" className="focus-ring rounded-lg bg-white px-3.5 py-2 font-medium text-ink-950 transition hover:bg-white/90">Open the app</Link>
+          <Link href="/connect?sport=nba" className="hidden rounded-lg px-3 py-2 text-fg-muted hover:text-fg sm:block">NBA</Link>
+          <Link href="/connect?sport=nfl" className="hidden rounded-lg px-3 py-2 text-fg-muted hover:text-fg sm:block">NFL</Link>
+          <Link href="/connect?sport=nfl" className="focus-ring rounded-lg bg-white px-3.5 py-2 font-medium text-ink-950 transition hover:bg-white/90">Open the app</Link>
         </nav>
       </header>
 
@@ -77,8 +77,8 @@ export default function Landing() {
         </h1>
         <p className="mx-auto mt-7 max-w-xl text-lg text-fg-muted animate-fade-up [animation-delay:160ms]">Live data. Deeper context. Smarter fantasy decisions. Fantasy points tell you what happened — we help you understand what comes next.</p>
         <div className="mt-9 flex flex-wrap justify-center gap-3 animate-fade-up [animation-delay:240ms]">
-          <Link href="/nfl" className="focus-ring group inline-flex items-center gap-2 rounded-xl bg-electric px-5 py-3 font-medium text-white shadow-[0_0_40px_-8px_#4f7cff] transition hover:bg-electric-soft">Explore the NFL demo <ArrowRight size={16} className="transition group-hover:translate-x-0.5" /></Link>
-          <Link href="/nba" className="focus-ring rounded-xl border border-line-strong bg-ink-900/60 px-5 py-3 font-medium backdrop-blur transition hover:border-white/25">NBA demo</Link>
+          <Link href="/connect?sport=nfl" className="focus-ring group inline-flex items-center gap-2 rounded-xl bg-electric px-5 py-3 font-medium text-white shadow-[0_0_40px_-8px_#4f7cff] transition hover:bg-electric-soft">Analyze an NFL roster <ArrowRight size={16} className="transition group-hover:translate-x-0.5" /></Link>
+          <Link href="/connect?sport=nba" className="focus-ring rounded-xl border border-line-strong bg-ink-900/60 px-5 py-3 font-medium backdrop-blur transition hover:border-white/25">Analyze an NBA roster</Link>
         </div>
         <div className="mt-16 animate-fade-up [animation-delay:320ms]"><QueryTicker /></div>
         <div className="mx-auto mt-8 flex max-w-2xl flex-wrap justify-center gap-2 animate-fade-up [animation-delay:400ms]">
@@ -106,7 +106,7 @@ export default function Landing() {
       <section className="mx-auto max-w-5xl px-5 pb-28 text-center sm:px-8">
         <h2 className="text-[length:var(--text-display)] font-semibold leading-[1] tracking-[-0.045em]">Cause → effect. Everywhere.</h2>
         <p className="mx-auto mt-4 max-w-lg text-fg-muted">Not a calculator. Not a stats dump. An analyst that shows its work.</p>
-        <Link href="/nfl" className="focus-ring mt-8 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 font-medium text-ink-950 hover:bg-white/90">Open the command center <ArrowRight size={16} /></Link>
+        <Link href="/connect?sport=nfl" className="focus-ring mt-8 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 font-medium text-ink-950 hover:bg-white/90">Open the command center <ArrowRight size={16} /></Link>
       </section>
 
       <footer className="border-t border-line">

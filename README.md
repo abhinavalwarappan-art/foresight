@@ -111,7 +111,7 @@ See `.env.example`. Only `NEXT_PUBLIC_*` values reach the browser; everything el
 
 ## Provider architecture
 - Adapters implement `SportsProvider` / `FantasyProvider` / `OddsProvider` / `ResearchProvider` and return `Sourced<T>` (data + provenance).
-- All network calls go through `providerFetch` (`lib/providers/http.ts`): cache-first by data class (`lib/cache/policy.ts`), timeout, exponential-backoff retries, 429 `Retry-After`, auth errors surfaced, 3-strike circuit breaker, stale-cache fallback.
+- All network calls go through `providerFetch` (`lib/providers/http.ts`): process-local stale fallback plus Next/Vercel's persistent Data Cache by data class (`lib/cache/policy.ts`), timeout, exponential-backoff retries, 429 `Retry-After`, auth errors surfaced, and a 3-strike circuit breaker.
 - Endpoints/fields were taken from official docs: BALLDONTLIE OpenAPI (`nfl.yml`, `nba.yml`), docs.sleeper.com, The Odds API v4 guide, Exa search reference. SportsDataIO and Sportradar are wired as fallback **stubs** that refuse to run until verified against account documentation.
 
 ### Adding a sports provider
@@ -140,7 +140,7 @@ Highlights: provenance on every provider row; `projection_snapshots`, `player_va
 
 ## Testing
 ```bash
-npm test             # vitest — 68 tests: scoring, lineup, engines, trades, scenarios, providers, Sleeper, ID mapping,
+npm test             # vitest — 70 tests: scoring, lineup, engines, trades, scenarios, providers, Sleeper, ID mapping,
                      # ambiguity, missing data, analytics-trace reconciliation, tool outputs, freshness, redaction
 npm run typecheck
 npm run build

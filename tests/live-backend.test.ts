@@ -1,10 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildContext } from "@/lib/analytics/context";
 import { cacheClear } from "@/lib/cache/store";
 import type { Game, Team } from "@/lib/domain/types";
 import { getMockWorld } from "@/lib/mock/world";
 import { getGameIntelligence, getPlayerOutlook, getWeeklyTeamOutlook } from "@/lib/services/intelligence";
 import { openMeteo } from "@/lib/providers/weather/openMeteo";
+import { providerFetch } from "@/lib/providers/http";
+import { playersFromLeagueRefs } from "@/lib/providers/registry";
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("high-level intelligence services", () => {
   it("composes a player outlook with explicit historical sample sizes", async () => {
@@ -49,6 +53,30 @@ describe("Open-Meteo weather contract", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ hourly: { time: [futureHour()], temperature_2m: [41], relative_humidity_2m: [72], precipitation_probability: [35], precipitation: [0.04], weather_code: [61], wind_speed_10m: [18], wind_gusts_10m: [27] } }), { status: 200 })));
     const result = await openMeteo.getGameWeather(game("nfl-bdl-t2"), team("BUF"));
     expect(result).toMatchObject({ relevant: true, roof: "outdoor", temperatureF: 41, windMph: 18, windGustMph: 27, precipitationProbability: 35, condition: "Rain" });
+  });
+});
+
+describe("live provider resilience", () => {
+  beforeEach(() => cacheClear());
+
+  it("uses Next's persistent data cache with the declared TTL", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await providerFetch("https://provider.example/players", { provider: "test", cacheKey: "persistent-cache", cacheClass: "player_meta" });
+    expect(fetchMock).toHaveBeenCalledWith("https://provider.example/players", expect.objectContaining({
+      cache: "force-cache",
+      next: { revalidate: 86_400 },
+    }));
+  });
+
+  it("normalizes connected roster players without a full sports catalog", () => {
+    const teams = [team("KC")];
+    const result = playersFromLeagueRefs("nfl", "sleeper", [
+      { externalId: "123", firstName: "Pat", lastName: "Example", position: "QB", teamAbbr: "KC" },
+      { externalId: "KC", firstName: "Kansas City", lastName: "Chiefs", position: "DEF", teamAbbr: "KC" },
+    ], { "123": { injury: "Questionable", depthOrder: 2 } }, teams, { source: "sleeper", sourceTimestamp: null, retrievedAt: new Date().toISOString(), confidence: null, isProjection: false, kind: "observed" });
+    expect(result.data[0]).toMatchObject({ id: "nfl-sleeper-p123", position: "QB", teamId: "home", status: "questionable", depthOrder: 2, ids: { sleeper: "123" } });
+    expect(result.data[1]).toMatchObject({ position: "DST" });
   });
 });
 

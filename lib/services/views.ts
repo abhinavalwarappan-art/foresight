@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { redirect } from "next/navigation";
 import { availability } from "@/lib/analytics/availability";
 import { playerName } from "@/lib/analytics/context";
 import { powerRankings } from "@/lib/analytics/league";
@@ -11,11 +12,15 @@ import { allValues } from "@/lib/analytics/value";
 import { whatsChanging } from "@/lib/analytics/explain";
 import { waiverRecommendations } from "@/lib/analytics/waiver";
 import type { Sport } from "@/lib/domain/types";
+import { env } from "@/lib/config/env";
 import { researchProvider } from "@/lib/providers/registry";
-import { loadContext, summarize, teamName } from "./core";
+import { leagueConnection, loadContext, summarize, teamName } from "./core";
 
 /** Request-scoped memo so layout + page share one context build. */
-export const ctxFor = cache(async (sport: Sport) => loadContext(sport));
+export const ctxFor = cache(async (sport: Sport) => {
+  if (env.DATA_MODE === "live" && !(await leagueConnection(sport))) redirect(`/connect?sport=${sport}`);
+  return loadContext(sport);
+});
 
 export async function shellData(sport: Sport) {
   const { ctx, status } = await ctxFor(sport);

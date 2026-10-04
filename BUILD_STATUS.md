@@ -1,6 +1,6 @@
 # BUILD_STATUS
 
-_Last updated: 2026-10-04 · model `proj-formula@0.3.1` · 68/68 tests passing · typecheck/build green · phase: **backend hardening + live-data validation**_
+_Last updated: 2026-10-04 · model `proj-formula@0.3.1` · 70/70 tests passing · typecheck/build green · phase: **backend hardening + live-data validation**_
 
 ## DONE
 
@@ -8,6 +8,8 @@ _Last updated: 2026-10-04 · model `proj-formula@0.3.1` · 68/68 tests passing �
 - Work isolated on `feat/backend-hardening-live`; prior validated Sleeper changes preserved. No credentials are tracked or printed.
 - LIVE mode no longer silently swaps in the fictional mock world. It requires a connected Sleeper league or manual roster; optional sources degrade to explicit unavailable/stale states.
 - Added account-free manual analysis mode backed by real BALLDONTLIE player search and an HTTP-only temporary roster/scoring cookie.
+- Unconnected live NFL/NBA routes now redirect to the matching connection flow instead of rendering a server error. Connected Sleeper rosters normalize directly from Sleeper player references rather than exhausting BALLDONTLIE's free-tier quota on a full catalog.
+- Provider fetches now use Next/Vercel's persistent Data Cache in addition to the process-local stale fallback, so cold serverless instances share quota-friendly cached responses.
 - Added first-class `getPlayerOutlook`, `getGameIntelligence`, and `getWeeklyTeamOutlook` orchestration services and AI tools. Historical windows carry sample sizes; weekly output carries freshness and explicit missing factors.
 - Added Open-Meteo weather abstraction and centralized weather TTL. Outdoor NFL venues fetch forecasts; domes are skipped; retractable roofs are not assumed open.
 - Added structured provider request logs containing only sanitized endpoint, duration, cache state, success/error. No keys or authorization headers are logged.

@@ -1,16 +1,18 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { BottomNav, SideNav, SportSwitch } from "@/components/shell/Nav";
 import { Logo } from "@/components/shell/Logo";
 import { Notifications } from "@/components/shell/Notifications";
 import { SearchCommand } from "@/components/shell/SearchCommand";
-import { sportSchema } from "@/lib/services/core";
+import { leagueConnection, sportSchema } from "@/lib/services/core";
+import { env } from "@/lib/config/env";
 import { shellData } from "@/lib/services/views";
 
 export default async function SportLayout({ children, params }: { children: React.ReactNode; params: Promise<{ sport: string }> }) {
   const parsed = sportSchema.safeParse((await params).sport);
   if (!parsed.success) notFound();
   const sport = parsed.data;
+  if (env.DATA_MODE === "live" && !(await leagueConnection(sport))) redirect(`/connect?sport=${sport}`);
   const shell = await shellData(sport);
 
   return (

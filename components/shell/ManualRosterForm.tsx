@@ -6,13 +6,13 @@ import type { ApiResponse } from "@/lib/util/api";
 
 interface SearchPlayer { id: string; name: string; position: string; teamId: string }
 
-export function ManualRosterForm() {
+export function ManualRosterForm({ initialSport = "nfl" }: { initialSport?: "nfl" | "nba" }) {
   const router = useRouter();
-  const [sport, setSport] = useState<"nfl" | "nba">("nfl");
+  const [sport, setSport] = useState<"nfl" | "nba">(initialSport);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchPlayer[]>([]);
   const [selected, setSelected] = useState<SearchPlayer[]>([]);
-  const [scoring, setScoring] = useState("ppr");
+  const [scoring, setScoring] = useState(initialSport === "nfl" ? "ppr" : "nba_points");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
