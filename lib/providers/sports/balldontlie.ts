@@ -230,13 +230,14 @@ export const balldontlie: SportsProvider = {
   },
 
   async getGames(sport, season) {
-    // An NBA season is ~1,230 games and exceeds the free tier's request window when
-    // fully paginated. The application only consumes recent form and the upcoming
-    // slate, so bound NBA requests to that analysis window. NFL fits in a few pages.
+    // Full-season pagination can exhaust the free tier on a cold serverless
+    // instance. The application consumes recent form and the upcoming slate, so
+    // bound both sports to that analysis window and keep a cold load to one page.
     const now = Date.now();
-    const params = sport === "nba"
-      ? { start_date: isoDate(now - 24 * 86_400_000), end_date: isoDate(now + 21 * 86_400_000) }
-      : { "seasons[]": [season] };
+    const params = {
+      start_date: isoDate(now - (sport === "nfl" ? 21 : 24) * 86_400_000),
+      end_date: isoDate(now + (sport === "nfl" ? 18 : 21) * 86_400_000),
+    };
     const r = await paginate<BdlGame>(`/${sport}/v1/games`, params, "historical_games");
     r.data.forEach((g, i) => raw("game", `game:${gameId(sport, g.id)}`, r.metas[i], g));
     const games: Game[] = r.data.map((g) => ({
