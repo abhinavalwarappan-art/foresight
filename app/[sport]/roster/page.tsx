@@ -24,6 +24,13 @@ export default async function Roster({ params }: { params: Promise<{ sport: Spor
         {scoreCards.map(([l, v, sub], i) => <MetricCard key={l} label={l} value={v} sub={sub} accent={i === 0 ? "electric" : undefined} />)}
       </div>
 
+      {d.reported && <Card className="mt-6">
+        <CardHeader eyebrow="Sleeper lineup · source of truth" title="Current roster assignment" kind="observed" />
+        <div className="grid gap-5 px-5 pb-5 md:grid-cols-3">
+          {(["starters", "bench", "ir"] as const).map((group) => <div key={group}><div className="eyebrow mb-2">{group === "ir" ? "IR / Reserve" : group}</div><div className="divide-y divide-line/60">{d.reported![group].length ? d.reported![group].map((p) => <PlayerLine key={p.id} p={p} sport={sport} compact />) : <p className="py-2 text-xs text-fg-dim">None</p>}</div></div>)}
+        </div>
+      </Card>}
+
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.25fr_1fr]">
         <Card>
           <CardHeader eyebrow={`Optimal lineup · ${d.analysis.weeklyThisWeek} projected this week`} kind="projected" title="Starters" />

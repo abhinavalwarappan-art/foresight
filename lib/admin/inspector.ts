@@ -201,7 +201,7 @@ export function inspectLeague(ctx: AnalyticsContext) {
   const s = ctx.snap;
   const raw = s.isMock ? [] : rawFor(`league:${s.league.id}`).map((r) => ({ ...r, payload: redact(r.payload) }));
   return {
-    league: s.league, teams: s.fantasyTeams, rosterSizes: s.rosters.map((r) => ({ teamId: r.teamId, players: r.playerIds.length, ir: r.irIds.length })),
+    league: s.league, teams: s.fantasyTeams, rosterSizes: s.rosters.map((r) => ({ teamId: r.teamId, players: r.playerIds.length, starters: r.starterIds?.length ?? null, ir: r.irIds.length })),
     mapping: mappingIssues(ctx), raw, freshness: freshness(s.sources.fantasy, "fantasy_league"),
   };
 }
@@ -210,11 +210,12 @@ export function inspectLeague(ctx: AnalyticsContext) {
 export function toolArgTemplates(ctx: AnalyticsContext, playerId: string): Record<string, unknown> {
   const p = ctx.player(playerId);
   const owner = ctx.ownerOf(playerId);
-  const other = ctx.snap.fantasyTeams.find((t) => t.id !== (owner ?? ctx.userTeamId))!.id;
-  const counterpart = ctx.rosterOf(other)[0];
+  const other = ctx.snap.fantasyTeams.find((t) => t.id !== (owner ?? ctx.userTeamId))?.id ?? ctx.userTeamId;
+  const counterpart = ctx.rosterOf(other)[0] ?? playerId;
   const samePos = ctx.snap.players.find((x) => x.id !== playerId && x.position === p?.position && ctx.ownerOf(x.id) === ctx.userTeamId)?.id ?? ctx.rosterOf(ctx.userTeamId)[0];
   const pid = { playerId };
   return {
+    getPlayerOutlook: pid, getGameContext: { gameId: ctx.snap.games.find((g) => g.week === ctx.snap.currentWeek)?.id ?? ctx.snap.games[0]?.id ?? "unavailable" }, getWeeklyTeamOutlook: {},
     searchPlayers: { query: p ? p.lastName : "smith" },
     getPlayerProfile: pid, getPlayerStats: { playerId, last: 4 }, getPlayerAdvancedStats: pid, getPlayerProjection: pid,
     getPlayerOpportunity: pid, getPlayerAvailability: pid, getPlayerNews: pid, getMarketExpectations: pid,
@@ -225,4 +226,3 @@ export function toolArgTemplates(ctx: AnalyticsContext, playerId: string): Recor
     simulateScenario: { playerId, type: "out" },
   };
 }
-

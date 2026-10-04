@@ -126,7 +126,7 @@ export function projectPlayer(
 
   return {
     projection: {
-      playerId, week, median, floor: Math.min(floor, median), ceiling: Math.max(ceiling, median), confidence,
+      playerId, week, available: played.length > 0 && games > 0 && xfp > 0, median, floor: Math.min(floor, median), ceiling: Math.max(ceiling, median), confidence,
       variance: round1(sdPts ** 2), rosValue: 0, gamesInWeek, weeklyMedian: round1(median * gamesInWeek), playProbability,
       modelVersion: PROJECTION_MODEL_VERSION,
       provenance: {

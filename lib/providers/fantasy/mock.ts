@@ -6,7 +6,7 @@ export const mockFantasy: FantasyProvider = {
   isConfigured: () => true,
   async listLeagues(_user, sport) {
     const w = getMockWorld(sport);
-    return { data: [{ id: w.league.id, name: w.league.name, sport, season: w.season, teams: w.fantasyTeams.length }], provenance: w.sources.fantasy };
+    return { data: [{ id: w.league.id, name: w.league.name, sport, season: w.season, teams: w.fantasyTeams.length, scoring: w.league.scoring.format, status: "in_season" }], provenance: w.sources.fantasy };
   },
   async getLeague(_id, { sport }) {
     const w = getMockWorld(sport);

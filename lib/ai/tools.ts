@@ -12,6 +12,7 @@ import { findTrades } from "@/lib/analytics/trade-finder";
 import { allValues } from "@/lib/analytics/value";
 import { waiverRecommendations } from "@/lib/analytics/waiver";
 import { researchProvider } from "@/lib/providers/registry";
+import { getGameIntelligence, getPlayerOutlook, getWeeklyTeamOutlook } from "@/lib/services/intelligence";
 
 /**
  * Registered internal tools — the ONLY things the LLM can invoke. No tool fetches
@@ -49,6 +50,9 @@ function brief(ctx: AnalyticsContext, id: string) {
 }
 
 const tools: ToolDef[] = [
+  tool({ name: "getPlayerOutlook", description: "High-level grounded player outlook combining projection, opportunity, availability, trends, historical windows, schedule, market, and weather when available.", schema: z.object({ playerId: pid }), run: (ctx, { playerId }) => getPlayerOutlook(ctx, playerId) }),
+  tool({ name: "getGameContext", description: "Normalized game intelligence: opponent, venue, rest, market, weather relevance, and injuries. Missing factors are explicit.", schema: z.object({ gameId: z.string().min(1).max(80) }), run: (ctx, { gameId }) => getGameIntelligence(ctx, gameId) }),
+  tool({ name: "getWeeklyTeamOutlook", description: "First-class weekly roster outlook with recommended lineup, floor/median/ceiling, confidence, flags, and freshness.", schema: z.object({ teamId: z.string().max(80).optional() }), run: (ctx, { teamId }) => getWeeklyTeamOutlook(ctx, teamId ?? ctx.userTeamId) }),
   tool({
     name: "searchPlayers",
     description: "Resolve player names to internal ids. Always call this before any player tool when the user names a player.",
@@ -116,7 +120,12 @@ const tools: ToolDef[] = [
     name: "getRoster",
     description: "A fantasy team's roster with player briefs. Omit teamId for the user's team.",
     schema: z.object({ teamId: z.string().max(80).optional() }),
-    run: (ctx, { teamId }) => ({ teamId: teamId ?? ctx.userTeamId, players: ctx.rosterOf(teamId ?? ctx.userTeamId).map((id) => brief(ctx, id)) }),
+    run: (ctx, { teamId }) => {
+      const id = teamId ?? ctx.userTeamId;
+      const roster = ctx.snap.rosters.find((r) => r.teamId === id);
+      const starters = new Set(roster?.starterIds ?? []);
+      return { league: { id: ctx.snap.league.id, name: ctx.snap.league.name, scoring: ctx.snap.league.scoring, slots: ctx.snap.league.slots }, teamId: id, starters: (roster?.starterIds ?? []).map((p) => brief(ctx, p)), bench: (roster?.playerIds ?? []).filter((p) => !starters.has(p)).map((p) => brief(ctx, p)), ir: (roster?.irIds ?? []).map((p) => brief(ctx, p)) };
+    },
   }),
   tool({
     name: "analyzeRoster",

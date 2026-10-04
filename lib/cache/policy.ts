@@ -13,6 +13,7 @@ export type CacheClass =
   | "depth_charts"
   | "odds"
   | "live_games"
+  | "weather"
   | "fantasy_league"
   | "fantasy_rosters"
   | "research";
@@ -31,6 +32,7 @@ export const CACHE_POLICY: Record<CacheClass, { ttl: number; staleFor: number }>
   depth_charts: { ttl: HOUR, staleFor: DAY },
   odds: { ttl: 5 * MIN, staleFor: HOUR },
   live_games: { ttl: 15_000, staleFor: 5 * MIN },
+  weather: { ttl: 30 * MIN, staleFor: 3 * HOUR },
   fantasy_league: { ttl: 30 * MIN, staleFor: DAY },
   fantasy_rosters: { ttl: 5 * MIN, staleFor: 6 * HOUR },
   research: { ttl: 15 * MIN, staleFor: 12 * HOUR },

@@ -20,6 +20,16 @@ import type { SportsProvider } from "./types";
 const BASE = "https://api.balldontlie.io";
 const NAME = "balldontlie";
 const MAX_PAGES = 40;
+const unsupported = new Set<string>();
+
+async function optionalTier<T>(capability: string, call: () => Promise<T>): Promise<T> {
+  if (unsupported.has(capability)) throw new NotConfiguredError(NAME, `${capability} unavailable on current subscription tier`);
+  try { return await call(); }
+  catch (e) {
+    if (/unauthorized \(40[13]\)/i.test((e as Error).message)) unsupported.add(capability);
+    throw e;
+  }
+}
 
 interface Page<T> {
   data: T[];
@@ -34,6 +44,7 @@ interface BdlPlayer {
 interface BdlGame {
   id: number; date: string; season: number; week?: number; status: string; postseason?: boolean;
   home_team: BdlTeam; visitor_team: BdlTeam; home_team_score: number | null; visitor_team_score: number | null;
+  venue?: string | null; datetime?: string;
 }
 interface BdlNflStats {
   player: BdlPlayer; team: BdlTeam; game: BdlGame;
@@ -75,6 +86,7 @@ async function paginate<T>(path: string, params: Record<string, string | number 
   for (let i = 0; i < MAX_PAGES; i++) {
     const url = `${BASE}${path}?${qs({ ...params, per_page: 100, cursor })}`;
     const res = await providerFetch<Page<T>>(url, { provider: NAME, cacheKey: url, cacheClass: cls, headers: headers() });
+    if (!res.data || !Array.isArray(res.data.data)) throw new Error(`[${NAME}] malformed paginated response for ${path}`);
     const meta = { endpoint: res.endpoint, retrievedAt: res.retrievedAt, cache: res.cache };
     for (const row of res.data.data) { out.push(row); metas.push(meta); }
     stale ||= res.stale;
@@ -194,17 +206,42 @@ export const balldontlie: SportsProvider = {
   },
 
   async getPlayers(sport) {
-    const r = await paginate<BdlPlayer>(`/${sport}/v1/players/active`, {}, "player_meta");
+    // The base player endpoint is available on all tiers. `/players/active` is paid.
+    const r = await paginate<BdlPlayer>(`/${sport}/v1/players`, {}, "player_meta");
     r.data.forEach((p, i) => raw("player", `player:${playerId(sport, p.id)}`, r.metas[i], p));
     return { data: r.data.map((p) => mapPlayer(sport, p)).filter((p): p is Player => p !== null), provenance: liveProv(NAME, r.retrievedAt, r.stale, r.cache) };
   },
 
+  async searchPlayers(sport, query) {
+    const r = await paginate<BdlPlayer>(`/${sport}/v1/players`, { search: query }, "player_meta");
+    const data = r.data.map((p) => mapPlayer(sport, p)).filter((p): p is Player => p !== null).slice(0, 30);
+    data.forEach((p) => {
+      const source = r.data.find((x) => String(x.id) === p.ids.balldontlie);
+      if (source) raw("player", `player:${p.id}`, r.metas[r.data.indexOf(source)], source);
+    });
+    return { data, provenance: liveProv(NAME, r.retrievedAt, r.stale, r.cache) };
+  },
+
+  async getPlayersByIds(sport, ids) {
+    const providerIds = ids.map((id) => Number(id.split("-p").pop())).filter(Number.isFinite);
+    if (!providerIds.length) return { data: [], provenance: liveProv(NAME, new Date().toISOString()) };
+    const r = await paginate<BdlPlayer>(`/${sport}/v1/players`, { "player_ids[]": providerIds }, "player_meta");
+    return { data: r.data.map((p) => mapPlayer(sport, p)).filter((p): p is Player => p !== null), provenance: liveProv(NAME, r.retrievedAt, r.stale, r.cache) };
+  },
+
   async getGames(sport, season) {
-    const r = await paginate<BdlGame>(`/${sport}/v1/games`, { "seasons[]": [season] }, "historical_games");
+    // An NBA season is ~1,230 games and exceeds the free tier's request window when
+    // fully paginated. The application only consumes recent form and the upcoming
+    // slate, so bound NBA requests to that analysis window. NFL fits in a few pages.
+    const now = Date.now();
+    const params = sport === "nba"
+      ? { start_date: isoDate(now - 24 * 86_400_000), end_date: isoDate(now + 21 * 86_400_000) }
+      : { "seasons[]": [season] };
+    const r = await paginate<BdlGame>(`/${sport}/v1/games`, params, "historical_games");
     r.data.forEach((g, i) => raw("game", `game:${gameId(sport, g.id)}`, r.metas[i], g));
     const games: Game[] = r.data.map((g) => ({
       id: gameId(sport, g.id), sport, season: g.season,
-      week: g.week ?? weekFromDate(g.date, season), date: g.date,
+      week: g.week ?? weekFromDate(g.date, season), date: g.datetime ?? g.date, venue: g.venue ?? null,
       homeTeamId: teamId(sport, g.home_team.id), awayTeamId: teamId(sport, g.visitor_team.id),
       status: done(g.status) ? "final" : /\d{4}-/.test(g.status) || /pm|am|scheduled/i.test(g.status) ? "scheduled" : "live",
       homeScore: g.home_team_score, awayScore: g.visitor_team_score,
@@ -213,6 +250,7 @@ export const balldontlie: SportsProvider = {
   },
 
   async getPlayerGames(sport, season, gameIds): Promise<Sourced<PlayerGame[]>> {
+    if (unsupported.has(`${sport}:stats`)) throw new NotConfiguredError(NAME, `${sport} stats unavailable on current subscription tier`);
     const ids = gameIds.map((g) => Number(g.split("-g").pop())).filter(Number.isFinite);
     const out: PlayerGame[] = [];
     let retrievedAt = new Date().toISOString();
@@ -221,12 +259,12 @@ export const balldontlie: SportsProvider = {
     for (let i = 0; i < ids.length; i += 25) {
       const chunk = ids.slice(i, i + 25);
       if (sport === "nfl") {
-        const r = await paginate<BdlNflStats>(`/nfl/v1/stats`, { "game_ids[]": chunk, "seasons[]": [season] }, "completed_stats");
+        const r = await optionalTier(`${sport}:stats`, () => paginate<BdlNflStats>(`/nfl/v1/stats`, { "game_ids[]": chunk, "seasons[]": [season] }, "completed_stats"));
         r.data.forEach((s, j) => raw("stats", `player:${playerId("nfl", s.player.id)}`, r.metas[j], s));
         out.push(...r.data.map((s) => mapNflStats(s, r.retrievedAt)));
         retrievedAt = r.retrievedAt; stale ||= r.stale;
       } else {
-        const r = await paginate<BdlNbaStats>(`/nba/v1/stats`, { "game_ids[]": chunk }, "completed_stats");
+        const r = await optionalTier(`${sport}:stats`, () => paginate<BdlNbaStats>(`/nba/v1/stats`, { "game_ids[]": chunk }, "completed_stats"));
         r.data.forEach((s, j) => raw("stats", `player:${playerId("nba", s.player.id)}`, r.metas[j], s));
         out.push(...r.data.map((s) => mapNbaStats(s, weekFromDate(s.game.date, season), r.retrievedAt)));
         retrievedAt = r.retrievedAt; stale ||= r.stale;
@@ -236,7 +274,7 @@ export const balldontlie: SportsProvider = {
   },
 
   async getInjuries(sport) {
-    const r = await paginate<BdlInjury>(`/${sport}/v1/player_injuries`, {}, "injuries");
+    const r = await optionalTier(`${sport}:injuries`, () => paginate<BdlInjury>(`/${sport}/v1/player_injuries`, {}, "injuries"));
     r.data.forEach((i, j) => raw("injury", `player:${playerId(sport, i.player.id)}`, r.metas[j], i));
     const data: Injury[] = r.data.map((i) => ({
       playerId: playerId(sport, i.player.id), designation: mapDesignation(i.status), bodyPart: null, practice: [],
@@ -252,3 +290,5 @@ export function weekFromDate(date: string, season: number): number {
   const opener = Date.UTC(season, 9, 20);
   return Math.max(1, Math.floor((Date.parse(date) - opener) / (7 * 86_400_000)) + 1);
 }
+
+const isoDate = (timestamp: number) => new Date(timestamp).toISOString().slice(0, 10);

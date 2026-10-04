@@ -60,6 +60,7 @@ export async function providerFetch<T>(url: string, opts: Opts): Promise<FetchRe
   const hit = cacheGet<T>(cacheKey);
   if (hit?.fresh) {
     markCache(provider, "hit");
+    console.info(JSON.stringify({ event: "provider_request", provider, endpoint, cache: "hit", success: true, durationMs: 0 }));
     return { data: hit.value, fromCache: true, stale: false, retrievedAt: new Date(hit.storedAt).toISOString(), cache: "hit", endpoint, latencyMs: null };
   }
   markCache(provider, "miss");
@@ -96,6 +97,7 @@ export async function providerFetch<T>(url: string, opts: Opts): Promise<FetchRe
       cacheSet(cacheKey, cacheClass, data);
       const latencyMs = Date.now() - started;
       markOk(provider, latencyMs);
+      console.info(JSON.stringify({ event: "provider_request", provider, endpoint, cache: "miss", success: true, durationMs: latencyMs }));
       return { data, fromCache: false, stale: false, retrievedAt: new Date().toISOString(), cache: "miss", endpoint, latencyMs };
     } catch (e) {
       lastErr = e instanceof Error ? e.message : String(e);
@@ -105,5 +107,6 @@ export async function providerFetch<T>(url: string, opts: Opts): Promise<FetchRe
     }
   }
   markFailure(provider, lastErr);
+  console.warn(JSON.stringify({ event: "provider_request", provider, endpoint, cache: hit ? "stale" : "miss", success: false, error: lastErr }));
   return serveStale(lastErr);
 }

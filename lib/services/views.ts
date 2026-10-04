@@ -135,10 +135,18 @@ export async function rosterData(sport: Sport) {
   const me = ctx.userTeamId;
   const a = analyzeRoster(ctx, me);
   const s = (id: string) => summarize(ctx, id);
+  const rawRoster = ctx.snap.rosters.find((r) => r.teamId === me);
+  const reportedStarters = rawRoster?.starterIds ?? [];
+  const reportedSet = new Set(reportedStarters);
   return {
     analysis: { scores: a.scores, groupStrength: a.groupStrength, groupDepthScore: a.groupDepthScore, weaknesses: a.weaknesses, leagueAvgWeekly: a.leagueAvgWeekly, weeklyRos: a.profile.weeklyRos, weeklyThisWeek: a.profile.weeklyThisWeek },
     starters: a.profile.lineupThisWeek.starters.map((x) => ({ slot: x.slot, value: x.value, player: x.playerId ? s(x.playerId) : null })),
     bench: a.profile.lineupThisWeek.bench.map(s),
+    reported: rawRoster?.starterIds ? {
+      starters: reportedStarters.map(s),
+      bench: rawRoster.playerIds.filter((id) => !reportedSet.has(id)).map(s),
+      ir: rawRoster.irIds.map(s),
+    } : null,
     teamName: teamName(ctx, me),
   };
 }
@@ -146,7 +154,7 @@ export async function rosterData(sport: Sport) {
 export async function waiversData(sport: Sport) {
   const { ctx } = await ctxFor(sport);
   const recs = waiverRecommendations(ctx, ctx.userTeamId, 12);
-  const rostered = new Set(ctx.snap.rosters.flatMap((r) => r.playerIds));
+  const rostered = new Set(ctx.snap.rosters.flatMap((r) => [...r.playerIds, ...r.irIds]));
   const generic = [...allValues(ctx).values()].filter((v) => !rostered.has(v.playerId) && v.week.projection.median > 0).sort((a, b) => b.rosPoints - a.rosPoints).slice(0, 15).map((v) => summarize(ctx, v.playerId));
   return {
     recs: recs.map((r) => ({ ...r, player: summarize(ctx, r.playerId), dropPlayer: r.drop ? summarize(ctx, r.drop) : null })),

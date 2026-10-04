@@ -21,6 +21,11 @@ export default async function SportLayout({ children, params }: { children: Reac
           <Link href="/connect" className="underline decoration-amber/40 underline-offset-2 hover:text-amber">connect a league</Link>
         </div>
       )}
+      {!shell.status.usingMock && shell.status.fallbackReason && (
+        <div className="border-b border-amber/20 bg-amber/[0.06] px-4 py-1.5 text-center font-mono text-[10.5px] tracking-wide text-amber/90">
+          LIVE DATA PARTIAL · {shell.status.fallbackReason}
+        </div>
+      )}
       <div className="mx-auto flex max-w-[1500px]">
         <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-line px-4 py-5 lg:flex">
           <Link href="/" className="focus-ring mb-7 rounded px-2"><Logo /></Link>

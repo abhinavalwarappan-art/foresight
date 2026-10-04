@@ -10,9 +10,13 @@ import { getSnapshot, type LeagueConnection, type SnapshotStatus } from "@/lib/p
 export const sportSchema = z.enum(["nfl", "nba"]);
 
 const connSchema = z.object({
-  provider: z.enum(["sleeper", "yahoo"]),
+  provider: z.enum(["sleeper", "yahoo", "manual"]),
   leagueId: z.string().regex(/^[A-Za-z0-9._-]{1,40}$/),
   userId: z.string().regex(/^[A-Za-z0-9._-]{1,40}$/).optional(),
+  syncedAt: z.string().datetime().optional(),
+  playerIds: z.array(z.string().regex(/^(nfl|nba)-bdl-p\d+$/)).max(30).optional(),
+  scoring: z.enum(["ppr", "half", "standard", "nba_points", "nba_9cat"]).optional(),
+  slots: z.array(z.enum(["QB", "RB", "WR", "TE", "FLEX", "SUPER_FLEX", "WRRB_FLEX", "REC_FLEX", "K", "DST", "PG", "SG", "SF", "PF", "C", "G", "F", "UTIL", "BN", "IR"])).max(30).optional(),
 });
 export const LEAGUE_COOKIE = (sport: Sport) => `fs_league_${sport}`;
 
