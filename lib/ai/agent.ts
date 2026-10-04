@@ -15,7 +15,7 @@ export interface ToolTrace {
 
 export interface AskResult {
   answer: string;
-  provider: "openai" | "gemini" | "mock";
+  provider: "openai" | "gemini" | "deepseek" | "mock";
   tools: ToolTrace[];
 }
 

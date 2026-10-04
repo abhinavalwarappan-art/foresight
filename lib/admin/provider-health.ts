@@ -29,11 +29,12 @@ export function providerHealthRows(): ProviderHealthRow[] {
   const defs: { id: string; name: string; domain: string; configured: boolean; note?: string }[] = [
     { id: "balldontlie", name: "BALLDONTLIE", domain: "sports", configured: Boolean(env.BALLDONTLIE_API_KEY) },
     { id: "sportsdataio", name: "SportsDataIO", domain: "sports", configured: Boolean(env.SPORTSDATAIO_API_KEY), note: "adapter stub — pending verification" },
-    { id: "sportradar", name: "Sportradar", domain: "sports", configured: Boolean(env.SPORTRADAR_API_KEY), note: "adapter stub — pending verification" },
+    { id: "sportradar", name: "Sportradar", domain: "sports", configured: Boolean(env.SPORTRADAR_API_KEY_NBA || env.SPORTRADAR_API_KEY_NFL), note: "adapter stub — pending verification" },
     { id: "sleeper", name: "Sleeper", domain: "fantasy", configured: true, note: "public API, no key required" },
     { id: "yahoo", name: "Yahoo Fantasy", domain: "fantasy", configured: Boolean(env.YAHOO_CLIENT_ID && env.YAHOO_CLIENT_SECRET), note: "OAuth only; league sync pending" },
     { id: "the-odds-api", name: "The Odds API", domain: "odds", configured: Boolean(env.THE_ODDS_API_KEY) },
     { id: "exa", name: "Exa", domain: "research", configured: Boolean(env.EXA_API_KEY) },
+    { id: "deepseek", name: "DeepSeek", domain: "ai", configured: Boolean(env.DEEPSEEK_API_KEY), note: resolvedAiProvider() === "deepseek" ? "active AI provider" : "inactive" },
     { id: "openai", name: "OpenAI", domain: "ai", configured: Boolean(env.OPENAI_API_KEY), note: resolvedAiProvider() === "openai" ? "active AI provider" : "inactive" },
     { id: "gemini", name: "Gemini", domain: "ai", configured: Boolean(env.GEMINI_API_KEY), note: resolvedAiProvider() === "gemini" ? "active AI provider" : "inactive" },
   ];

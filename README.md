@@ -101,7 +101,7 @@ See `.env.example`. Only `NEXT_PUBLIC_*` values reach the browser; everything el
 ## How AI tools work
 - `lib/ai/tools.ts` registers 21 tools (searchPlayers, getPlayerProfile, simulateTrade, findTrades, simulateScenario, getMarketExpectations, …). Each has a Zod schema (converted to JSON Schema for the LLM) and runs against the analytics context.
 - `lib/ai/agent.ts` loops: model → tool calls → validated execution → results wrapped as data → model, up to 6 steps.
-- Provider chosen by `AI_PROVIDER` (`openai` | `gemini`); models via `OPENAI_MODEL` / `GEMINI_MODEL`. Without a key, a deterministic analyst plans the same tool calls and writes a templated answer.
+- Provider chosen by `AI_PROVIDER` (`openai` | `gemini` | `deepseek`); models via `OPENAI_MODEL` / `GEMINI_MODEL` / `DEEPSEEK_MODEL`. Without a key, a deterministic analyst plans the same tool calls and writes a templated answer.
 - Guardrails: no tool fetches arbitrary URLs; research text is classified into structured events and never forwarded verbatim; the system prompt forbids un-sourced statistics, requires both-sides trade analysis and uncertainty, and treats tool output as untrusted data.
 
 ## Database setup
