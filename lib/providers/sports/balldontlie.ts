@@ -234,10 +234,16 @@ export const balldontlie: SportsProvider = {
     // instance. The application consumes recent form and the upcoming slate, so
     // bound both sports to that analysis window and keep a cold load to one page.
     const now = Date.now();
-    const params = {
-      start_date: isoDate(now - (sport === "nfl" ? 21 : 24) * 86_400_000),
-      end_date: isoDate(now + (sport === "nfl" ? 18 : 21) * 86_400_000),
-    };
+    const currentNflWeek = nflWeekAt(season, now);
+    const params = sport === "nfl"
+      ? {
+          "seasons[]": [season],
+          "weeks[]": Array.from({ length: 5 }, (_, i) => Math.max(1, currentNflWeek - 2 + i)),
+        }
+      : {
+          start_date: isoDate(now - 24 * 86_400_000),
+          end_date: isoDate(now + 21 * 86_400_000),
+        };
     const r = await paginate<BdlGame>(`/${sport}/v1/games`, params, "historical_games");
     r.data.forEach((g, i) => raw("game", `game:${gameId(sport, g.id)}`, r.metas[i], g));
     const games: Game[] = r.data.map((g) => ({
@@ -293,3 +299,10 @@ export function weekFromDate(date: string, season: number): number {
 }
 
 const isoDate = (timestamp: number) => new Date(timestamp).toISOString().slice(0, 10);
+
+/** Estimate the regular-season week from the first Thursday in September. */
+const nflWeekAt = (season: number, timestamp: number) => {
+  const septemberFirst = new Date(Date.UTC(season, 8, 1));
+  const firstThursday = Date.UTC(season, 8, 1 + ((4 - septemberFirst.getUTCDay() + 7) % 7));
+  return Math.min(22, Math.max(1, Math.floor((timestamp - firstThursday) / (7 * 86_400_000)) + 1));
+};
